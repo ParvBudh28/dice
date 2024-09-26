@@ -114,6 +114,7 @@ func TestEval(t *testing.T) {
 	testEvalGEOADD(t, store)
 	testEvalGEODIST(t, store)
 	testEvalSINTER(t, store)
+	testEvalLINSERT(t, store)
 }
 
 func testEvalPING(t *testing.T, store *dstore.Store) {
@@ -5679,4 +5680,41 @@ func testEvalSINTER(t *testing.T, store *dstore.Store) {
 	}
 
 	runEvalTests(t, tests, evalSINTER, store)
+}
+
+func testEvalLINSERT(t *testing.T, store *dstore.Store) {
+	tests := map[string]evalTestCase{
+		"nil value": {
+			input:  nil,
+			output: []byte("-wrong number of arguments for LINSERT\r\n"),
+		},
+		"empty args": {
+			input:  []string{},
+			output: []byte("-wrong number of arguments for LINSERT\r\n"),
+		},
+		"wrong number of args": {
+			input:  []string{"KEY1", "KEY2"},
+			output: []byte("-wrong number of arguments for LINSERT\r\n"),
+		},
+		"key does not exist": {
+			input:  []string{"NONEXISTENT_KEY", "before", "pivot", "element"},
+			output: clientio.RespZero,
+		},
+		"key exists": {
+			setup: func() {
+				evalLPUSH([]string{"EXISTING_KEY", "mock_value"}, store)
+			},
+			input:  []string{"EXISTING_KEY", "before", "mock_value", "element"},
+			output: clientio.Encode(2, false),
+		},
+		"key with different type": {
+			setup: func() {
+				evalSET([]string{"EXISTING_KEY", "mock_value"}, store)
+			},
+			input:  []string{"EXISTING_KEY", "before", "mock_value", "element"},
+			output: []byte("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n"),
+		},
+	}
+
+	runEvalTests(t, tests, evalLINSERT, store)
 }
